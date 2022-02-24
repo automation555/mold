@@ -543,12 +543,12 @@ struct TimerRecord {
 
   std::string name;
   TimerRecord *parent;
+  std::once_flag once;
   tbb::concurrent_vector<TimerRecord *> children;
   i64 start;
   i64 end;
   i64 user;
   i64 sys;
-  bool stopped = false;
 };
 
 void
@@ -624,17 +624,6 @@ public:
 
   i64 get_offset() const {
     return parent ? (data - parent->data + parent->get_offset()) : 0;
-  }
-
-  // Returns a string that uniquely identify a file that is possibly
-  // in an archive.
-  std::string get_identifier() const {
-    if (parent) {
-      // We use the file offset within an archive as an identifier
-      // because archive members may have the same name.
-      return parent->name + ":" + std::to_string(get_offset());
-    }
-    return name;
   }
 
   std::string name;
