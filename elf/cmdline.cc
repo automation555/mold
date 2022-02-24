@@ -62,7 +62,6 @@ Options:
   --compress-debug-sections [none,zlib,zlib-gabi,zlib-gnu]
                               Compress .debug_* sections
   --dc                        Ignored
-  --dependency-file=FILE      Write Makefile-style dependency rules to FILE
   --defsym=SYMBOL=VALUE       Define a symbol alias
   --demangle                  Demangle C++ symbols in log messages (default)
     --no-demangle
@@ -110,14 +109,11 @@ Options:
   --repro                     Embed input files to .repro section
   --require-defined SYMBOL    Require SYMBOL be defined in the final output
   --retain-symbols-file FILE  Keep only symbols listed in FILE
-  --reverse-sections          Reverses input sections in the output file
   --rpath DIR                 Add DIR to runtime search path
   --rpath-link DIR            Ignored
   --run COMMAND ARG...        Run COMMAND with mold as /usr/bin/ld
   --shared, --Bshareable      Create a share library
-  --shuffle-sections          Randomize the output by shuffling input sections
-  --shuffle-sections-seed=NUMBER
-                              Initialize RNG for --shuffle-sections with NUMBER
+  --shuffle-sections[=SEED]   Randomize the output by shuffling input sections
   --sort-common               Ignored
   --sort-section              Ignored
   --spare-dynamic-tags NUMBER Reserve give number of tags in .dynamic section
@@ -176,7 +172,7 @@ Options:
 mold: supported targets: elf32-i386 elf64-x86-64 elf64-littleaarch64
 mold: supported emulations: elf_i386 elf_x86_64 aarch64linux aarch64elf)";
 
-static std::vector<std::string> add_dashes(std::string name) {
+static std::vector<std::string> add_dashes(std::string &name) {
   // Multi-letter linker options can be preceded by either a single
   // dash or double dashes except ones starting with "o", which must
   // be preceded by double dashes. For example, "-omagic" is
@@ -207,7 +203,7 @@ bool read_arg(Context<E> &ctx, std::span<std::string_view> &args,
     return false;
   }
 
-  for (std::string opt : add_dashes(name)) {
+  for (std::string &opt : add_dashes(name)) {
     if (args[0] == opt) {
       if (args.size() == 1)
         Fatal(ctx) << "option -" << name << ": argument missing";
@@ -226,7 +222,7 @@ bool read_arg(Context<E> &ctx, std::span<std::string_view> &args,
 }
 
 bool read_flag(std::span<std::string_view> &args, std::string name) {
-  for (std::string opt : add_dashes(name)) {
+  for (std::string &opt : add_dashes(name)) {
     if (args[0] == opt) {
       args = args.subspan(1);
       return true;
@@ -382,7 +378,7 @@ static std::pair<i64, i64> get_plt_size(Context<E> &ctx) {
     if (ctx.arg.z_now)
       return {0, 8};
     if (ctx.arg.z_ibtplt)
-      return {64, 16};
+      return {16, 24};
     return {16, 16};
   case EM_386:
     return {16, 16};
@@ -489,17 +485,11 @@ void parse_nonpositional_args(Context<E> &ctx,
       ctx.arg.spare_dynamic_tags = parse_number(ctx, "spare-dynamic-tags", arg);
     } else if (read_flag(args, "start-lib")) {
       remaining.push_back("-start-lib");
-    } else if (read_arg(ctx, args, arg, "dependency-file")) {
-      ctx.arg.dependency_file = arg;
     } else if (read_arg(ctx, args, arg, "defsym")) {
       size_t pos = arg.find('=');
       if (pos == arg.npos || pos == arg.size() - 1)
         Fatal(ctx) << "-defsym: syntax error: " << arg;
       ctx.arg.defsyms.push_back({arg.substr(0, pos), arg.substr(pos + 1)});
-    } else if (read_flag(args, ":lto-pass2")) {
-      ctx.arg.lto_pass2 = true;
-    } else if (read_arg(ctx, args, arg, ":ignore-ir-file")) {
-      ctx.arg.ignore_ir_file.insert(arg);
     } else if (read_flag(args, "demangle")) {
       ctx.arg.demangle = true;
     } else if (read_flag(args, "no-demangle")) {
@@ -507,12 +497,7 @@ void parse_nonpositional_args(Context<E> &ctx,
     } else if (read_flag(args, "default-symver")) {
       ctx.arg.default_symver = true;
     } else if (read_flag(args, "shuffle-sections")) {
-      ctx.arg.shuffle_sections = SHUFFLE_SECTIONS_SHUFFLE;
-    } else if (read_arg(ctx, args, arg, "shuffle-sections-seed")) {
-      ctx.arg.shuffle_sections_seed =
-        parse_number(ctx, "shuffle-sections-seed", arg);
-    } else if (read_flag(args, "reverse-sections")) {
-      ctx.arg.shuffle_sections = SHUFFLE_SECTIONS_REVERSE;
+      ctx.arg.shuffle_sections = true;
     } else if (read_arg(ctx, args, arg, "y") ||
                read_arg(ctx, args, arg, "trace-symbol")) {
       ctx.arg.trace_symbol.push_back(arg);
